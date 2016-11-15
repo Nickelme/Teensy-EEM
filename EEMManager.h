@@ -6,27 +6,28 @@
 #include <map>
 
 class ProtocolHandler {
-  public:
-    virtual void HandleProtocol(EtherFrame) = 0;
+	public:
+		virtual void HandleProtocol(EtherFrame) = 0;
 };
 
 class EEMManager {
 public:
-  EEMManager(MacAddress CurrentAddress);
-  void Loop();
+	EEMManager(MacAddress CurrentAddress);
+	void Loop();
 
-  void setProtocolHandler(EtherTypes type, ProtocolHandler* handler){
-    mProtocolHandlers[type] = handler;
-  }
+	void setProtocolHandler(EtherTypes type, ProtocolHandler* handler){
+		mProtocolHandlers[type] = handler;
+	}
 
-  void sendData(char *data, unsigned int len);
-  
+	void sendData(char *data, unsigned int len);
+	
 
 private:
-  MacAddress mCurrentAddress; 
+	MacAddress mCurrentAddress; 
 
-  void HandleEEMData(unsigned short eemHdr);
+	void HandleEEMData(unsigned short eemHdr);
+	void HandleEEMControl(unsigned short eemHdr);
 
-  std::map<EtherTypes, ProtocolHandler*> mProtocolHandlers;
+	std::map<EtherTypes, ProtocolHandler*> mProtocolHandlers;
 };
 #endif

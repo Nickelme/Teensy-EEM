@@ -1,0 +1,159 @@
+diff -bur Arduino-1.6.11-UnModified/hardware/teensy/avr/boards.txt arduino-1.6.11/hardware/teensy/avr/boards.txt
+--- Arduino-1.6.11-UnModified/hardware/teensy/avr/boards.txt	2016-11-15 14:40:14.235880000 -0500
++++ arduino-1.6.11/hardware/teensy/avr/boards.txt	2016-11-15 14:20:13.231614355 -0500
+@@ -27,11 +27,13 @@
+ teensy36.build.flags.c=
+ teensy36.build.flags.S=-x assembler-with-cpp
+ teensy36.build.flags.ld=-Wl,--gc-sections,--relax,--defsym=__rtc_localtime={extra.time.local} "-T{build.core.path}/mk66fx1m0.ld"
+-teensy36.build.flags.libs=-larm_cortexM4lf_math -lm
++teensy36.build.flags.libs=-larm_cortexM4lf_math -lm -lstdc++
+ teensy36.serial.restart_cmd=false
+ 
+ teensy36.menu.usb.serial=Serial
+ teensy36.menu.usb.serial.build.usbtype=USB_SERIAL
++teensy36.menu.usb.cdceem=CDC-EEM
++teensy36.menu.usb.cdceem.build.usbtype=USB_CDC_EEM
+ teensy36.menu.usb.keyboard=Keyboard
+ teensy36.menu.usb.keyboard.build.usbtype=USB_KEYBOARDONLY
+ teensy36.menu.usb.keyboard.fake_serial=teensy_gateway
+@@ -383,10 +385,12 @@
+ teensy31.build.flags.c=
+ teensy31.build.flags.S=-x assembler-with-cpp
+ teensy31.build.flags.ld=-Wl,--gc-sections,--relax,--defsym=__rtc_localtime={extra.time.local} "-T{build.core.path}/mk20dx256.ld"
+-teensy31.build.flags.libs=-larm_cortexM4l_math -lm
++teensy31.build.flags.libs=-larm_cortexM4l_math -lm -lstdc++
+ teensy31.serial.restart_cmd=false
+ teensy31.menu.usb.serial=Serial
+ teensy31.menu.usb.serial.build.usbtype=USB_SERIAL
++teensy31.menu.usb.cdceem=CDC-EEM
++teensy31.menu.usb.cdceem.build.usbtype=USB_CDC_EEM
+ teensy31.menu.usb.keyboard=Keyboard
+ teensy31.menu.usb.keyboard.build.usbtype=USB_KEYBOARDONLY
+ teensy31.menu.usb.keyboard.fake_serial=teensy_gateway
+diff -bur Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/usb_desc.c arduino-1.6.11/hardware/teensy/avr/cores/teensy3/usb_desc.c
+--- Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/usb_desc.c	2016-11-15 14:40:13.449264000 -0500
++++ arduino-1.6.11/hardware/teensy/avr/cores/teensy3/usb_desc.c	2016-11-06 02:46:38.575614276 -0500
+@@ -396,7 +396,14 @@
+ #define CDC_IAD_DESCRIPTOR_SIZE		0
+ #endif
+ 
+-#define CDC_DATA_INTERFACE_DESC_POS	CDC_IAD_DESCRIPTOR_POS+CDC_IAD_DESCRIPTOR_SIZE
++#define EEM_INTERFACE_DESC_POS		CDC_IAD_DESCRIPTOR_POS+CDC_IAD_DESCRIPTOR_SIZE
++#ifdef	EEM_INTERFACE
++#define EEM_INTERFACE_DESC_SIZE		9+7+7
++#else
++#define EEM_INTERFACE_DESC_SIZE		0
++#endif
++
++#define CDC_DATA_INTERFACE_DESC_POS	EEM_INTERFACE_DESC_POS+EEM_INTERFACE_DESC_SIZE
+ #ifdef  CDC_DATA_INTERFACE
+ #define CDC_DATA_INTERFACE_DESC_SIZE	9+5+5+4+5+7+9+7+7
+ #else
+@@ -522,6 +529,35 @@
+         4,                                      // iFunction
+ #endif
+ 
++#ifdef EEM_INTERFACE
++	9,
++	4,
++	EEM_INTERFACE,
++	0,
++	2,
++	0x02,
++	0x0C,
++	0x07,
++	0,
++	// RX Endpoint
++	7,
++	5,
++	EEM_RX_ENDPOINT,
++	0x02,
++	EEM_RX_SIZE, 0,
++	0,
++	// TX Endpoint
++	7,
++	5,
++	EEM_TX_ENDPOINT | 0x80,
++	0x02,
++	EEM_TX_SIZE, 0,
++	0,
++
++	
++#endif
++	
++
+ #ifdef CDC_DATA_INTERFACE
+         // interface descriptor, USB spec 9.6.5, page 267-269, Table 9-12
+         9,                                      // bLength
+diff -bur Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/usb_desc.h arduino-1.6.11/hardware/teensy/avr/cores/teensy3/usb_desc.h
+--- Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/usb_desc.h	2016-11-15 14:40:13.435932000 -0500
++++ arduino-1.6.11/hardware/teensy/avr/cores/teensy3/usb_desc.h	2016-11-15 15:49:49.976381110 -0500
+@@ -688,6 +688,41 @@
+   #define ENDPOINT14_CONFIG	ENDPOINT_TRANSMIT_ISOCHRONOUS
+   #define ENDPOINT15_CONFIG	ENDPOINT_TRANSIMIT_ONLY
+ 
++#elif defined(USB_CDC_EEM)
++  #define VENDOR_ID		0x16C0
++  #define PRODUCT_ID		0x0483
++  #define DEVICE_CLASS		0x02	// 2 = Communication Class
++  #define DEVICE_SUBCLASS	0x0C
++  #define DEVICE_PROTOCOL	0x07
++  #define MANUFACTURER_NAME	{'T','e','e','n','s','y','d','u','i','n','o'}
++  #define MANUFACTURER_NAME_LEN	11
++  #define PRODUCT_NAME		{'U','S','B',' ','C','D','C','-','E','E','M'}
++  #define PRODUCT_NAME_LEN	11
++  #define EP0_SIZE		64
++  #define NUM_ENDPOINTS		6
++  #define NUM_USB_BUFFERS	12
++  #define NUM_INTERFACE		3
++  #define EEM_INTERFACE		0
++  #define EEM_TX_ENDPOINT	3
++  #define EEM_TX_SIZE		64
++  #define EEM_RX_ENDPOINT	4
++  #define EEM_RX_SIZE		64
++  #define CDC_IAD_DESCRIPTOR	1
++  #define CDC_STATUS_INTERFACE	1
++  #define CDC_DATA_INTERFACE	2	// Serial
++  #define CDC_ACM_ENDPOINT	5
++  #define CDC_RX_ENDPOINT       2
++  #define CDC_TX_ENDPOINT       1
++  #define CDC_ACM_SIZE          16
++  #define CDC_RX_SIZE           64
++  #define CDC_TX_SIZE           64
++  #define ENDPOINT1_CONFIG	ENDPOINT_TRANSIMIT_ONLY
++  #define ENDPOINT2_CONFIG	ENDPOINT_RECEIVE_ONLY
++  #define ENDPOINT3_CONFIG	ENDPOINT_TRANSIMIT_ONLY
++  #define ENDPOINT4_CONFIG	ENDPOINT_RECEIVE_ONLY
++  #define ENDPOINT5_CONFIG	ENDPOINT_TRANSIMIT_ONLY
++	
++
+ #endif
+ 
+ #ifdef USB_DESC_LIST_DEFINE
+Only in arduino-1.6.11/hardware/teensy/avr/cores/teensy3: usb_eem.c
+Only in arduino-1.6.11/hardware/teensy/avr/cores/teensy3: usb_eem.h
+diff -bur Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/usb_inst.cpp arduino-1.6.11/hardware/teensy/avr/cores/teensy3/usb_inst.cpp
+--- Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/usb_inst.cpp	2016-11-15 14:40:13.442598000 -0500
++++ arduino-1.6.11/hardware/teensy/avr/cores/teensy3/usb_inst.cpp	2016-11-06 05:47:04.025482658 -0500
+@@ -68,6 +68,10 @@
+ uint8_t usb_joystick_class::manual_mode = 0;
+ #endif
+ 
++#ifdef EEM_INTERFACE
++usb_eem_class EEM;
++#endif
++
+ #ifdef USB_DISABLED
+ usb_serial_class Serial;
+ #endif
+diff -bur Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/WProgram.h arduino-1.6.11/hardware/teensy/avr/cores/teensy3/WProgram.h
+--- Arduino-1.6.11-UnModified/hardware/teensy/avr/cores/teensy3/WProgram.h	2016-11-15 14:40:13.425932000 -0500
++++ arduino-1.6.11/hardware/teensy/avr/cores/teensy3/WProgram.h	2016-11-06 03:02:53.840366075 -0500
+@@ -33,6 +33,7 @@
+ #include "usb_audio.h"
+ #include "usb_touch.h"
+ #include "usb_undef.h" // do not allow usb_desc.h stuff to leak to user programs
++#include "usb_eem.h"
+ 
+ #include "WCharacter.h"
+ #include "WString.h"
